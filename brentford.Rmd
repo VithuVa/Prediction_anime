@@ -1,0 +1,131 @@
+---
+title: "projet_mrr"
+output: pdf_document
+date: "2025-11-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Organisation de la BDD
+
+## character_anime_works
+
+```{r}
+character_anime_works<-read.csv("character_anime_works.csv")
+nb_main <- tapply(character_anime_works$role == "Main", character_anime_works$anime_mal_id, sum)
+nb_supporting <- tapply(character_anime_works$role == "Supporting", character_anime_works$anime_mal_id, sum)
+
+character_anime_works_propre <- data.frame(
+  anime_mal_id = names(nb_main),
+  nb_main = nb_main,
+  nb_supporting = nb_supporting,
+  row.names = NULL
+)
+head(character_anime_works_propre)
+```
+
+## character_nicknames
+
+```{r}
+character_nicknames <-read.csv("character_nicknames.csv")
+head(character_nicknames)
+```
+
+Pas utile.
+
+## characters
+
+```{r}
+characters <-read.csv("characters.csv")
+link_characters_anime <- merge(character_anime_works, characters, by = "character_mal_id")
+characters_propre <- aggregate(favorites ~ anime_mal_id, data = link_characters_anime, sum)
+head(characters_propre)
+```
+Par exemple, dans l'anime 1 il y a 69k personnes qui ont mis des persos de cet anime en fav.
+
+## details
+
+```{r}
+details <-read.csv("details.csv")
+
+```
+
+mal id : id de l'anime
+type
+status
+score
+scored by
+start date
+end date
+ranks (plus c'est pop plus c'est faible) -> faire de la classification sur ça 
+popularity
+members
+favorites
+genres
+studios
+themes
+demogrpahics
+source
+episodes
+season
+year
+producers
+licencors 
+streaming
+
+## favs
+
+```{r}
+
+```
+
+## person_alternate_names
+
+```{r}
+
+```
+
+## person_anime_works
+
+```{r}
+
+```
+
+## person_details
+
+```{r}
+
+```
+
+## person_voice_works
+
+```{r}
+
+```
+
+## profiles
+
+```{r}
+
+```
+
+## ratings
+
+```{r}
+
+```
+
+## recommendations
+
+```{r}
+
+```
+
+## stats
+
+```{r}
+
+```
