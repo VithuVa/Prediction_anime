@@ -196,41 +196,85 @@ inutile
 
 ```{r}
 person_anime_works <-read.csv("person_anime_works.csv")
+person_anime_works$position <- NULL
 head(person_anime_works)
 ```
 
 ## person_details
 
 ```{r}
-
+person_details <-read.csv("person_details.csv")
+person_details <- person_details[, c("person_mal_id","favorites")]
+head(person_details)
 ```
+On peut concaténer ces 2 tableaux.
+
+
+
+```{r}
+library(dplyr)
+person <- person_anime_works %>%
+  left_join(person_details, by = "person_mal_id")
+head(person)
+```
+
+```{r}
+missing_ids <- person_details %>%
+  anti_join(person_anime_works, by = "person_mal_id")
+head(missing_ids)
+```
+
+
+
 
 ## person_voice_works
 
 ```{r}
-
+person_voice_works <-read.csv("person_voice_works.csv")
+library(dplyr)
+person_voice_works_propre <- person_voice_works %>%
+  group_by(anime_mal_id) %>%
+  summarise(nb_langues = n_distinct(language))
+head(person_voice_works_propre)
 ```
-
 ## profiles
 
 ```{r}
+profiles <-read.csv("profiles.csv")
+profiles_propre <- profiles[, c("username","gender","birthday")]
 
+profiles_propre$gender <- as.numeric(as.factor(profiles_propre$gender))
+
+year <- sub(".* ([0-9]{4})$", "\\1", profiles_propre$birthday)
+year[!grepl("^[0-9]{4}$", year)] <- NA
+year_num <- as.numeric(year)
+
+
+profiles_propre$age <- ifelse(is.na(year_num), NA, 2025 - year_num)
+
+profiles_propre$birthday<- NULL
+profiles_propre <- profiles_propre[profiles_propre$age >= 8 & profiles_propre$age <= 100, ]
+head(profiles_propre)
 ```
+
 
 ## ratings
 
 ```{r}
-
+ratings <-read.csv("ratings.csv")
+head(ratings)
 ```
 
 ## recommendations
 
 ```{r}
-
+recommendations <-read.csv("recommendations.csv")
+head(recommendations)
 ```
 
 ## stats
 
 ```{r}
-
+stats <-read.csv("stats.csv")
+head(stats)
 ```
