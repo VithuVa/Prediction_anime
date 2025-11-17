@@ -63,14 +63,12 @@ details_selected <- details[, c(
   "members",
   "favorites",
   "genres",
-  "studios",
   "themes",
   "demographics",
   "source",
   "rating",
   "episodes",
   "season",
-  "producers",
   "licensors",
   "streaming"
 )]
@@ -143,6 +141,7 @@ for (col in cols_multi) {
   }
 }
 details_selected[cols_multi] <- NULL
+
 ```
 
 
@@ -168,7 +167,10 @@ producers
 licencors 
 streaming
 
-
+on retire 
+ "producers",
+   "studios",
+   car trop long
 
 
 
@@ -176,19 +178,25 @@ streaming
 ## favs
 
 ```{r}
-
+favs <-read.csv("favs.csv")
+favs_propre <- aggregate(username ~ id + fav_type, data = favs, FUN = function(x) length(unique(x)))
+names(favs_propre)[3] <- "nb_users"
+head(favs_propre)
 ```
 
 ## person_alternate_names
 
 ```{r}
-
+person_alternate_names <-read.csv("person_alternate_names.csv")
+head(person_alternate_names)
 ```
+inutile
 
 ## person_anime_works
 
 ```{r}
-
+person_anime_works <-read.csv("person_anime_works.csv")
+head(person_anime_works)
 ```
 
 ## person_details
