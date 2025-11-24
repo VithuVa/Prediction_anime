@@ -47,6 +47,13 @@ head(characters_propre)
 ```
 Par exemple, dans l'anime 1 il y a 69k personnes qui ont mis des persos de cet anime en fav.
 
+<<<<<<< HEAD
+=======
+
+
+
+
+>>>>>>> 9c1baf1d016a9a6f1ef9e69177175b6d80a9b5e2
 ## details
 
 ```{r}
@@ -153,16 +160,25 @@ head(fav_anime)
 
 
 ```{r}
+<<<<<<< HEAD
 head(favs)
 ```
 Id comprend plusieurs types d'identifiants : anime,persos...
+=======
+names(fav_people)[2] <- "nb_users_people"
+head(fav_people)
+```
+>>>>>>> 9c1baf1d016a9a6f1ef9e69177175b6d80a9b5e2
 
 
 ## person_alternate_names
 
 ```{r}
 person_alternate_names <-read.csv("person_alternate_names.csv")
+<<<<<<< HEAD
 head(person_alternate_names)
+=======
+>>>>>>> 9c1baf1d016a9a6f1ef9e69177175b6d80a9b5e2
 ```
 inutile
 
@@ -174,6 +190,21 @@ person_anime_works$position <- NULL
 head(person_anime_works)
 ```
 
+<<<<<<< HEAD
+=======
+
+
+```{r}
+nb_users_people<-merge(person_anime_works,fav_people,by.x="person_mal_id",by.y="id")
+
+nb_users_people <- aggregate(nb_users_people ~ anime_mal_id,
+                    data = nb_users_people,
+                    FUN = sum)
+
+head(nb_users_people)
+```
+
+>>>>>>> 9c1baf1d016a9a6f1ef9e69177175b6d80a9b5e2
 ## person_details
 
 ```{r}
@@ -192,17 +223,23 @@ person <- person_anime_works %>%
 head(person)
 ```
 
+<<<<<<< HEAD
 ```{r}
 missing_ids <- person_details %>%
   anti_join(person_anime_works, by = "person_mal_id")
 head(missing_ids)
 ```
+=======
+>>>>>>> 9c1baf1d016a9a6f1ef9e69177175b6d80a9b5e2
 
 
 
 
 ## person_voice_works
+<<<<<<< HEAD
 
+=======
+>>>>>>> 9c1baf1d016a9a6f1ef9e69177175b6d80a9b5e2
 ```{r}
 person_voice_works <-read.csv("person_voice_works.csv")
 library(dplyr)
@@ -214,20 +251,42 @@ head(person_voice_works_propre)
 ## profiles
 
 ```{r}
+<<<<<<< HEAD
 profiles <-read.csv("profiles.csv")
 profiles_propre <- profiles[, c("username","gender","birthday")]
 
 profiles_propre$gender <- as.numeric(as.factor(profiles_propre$gender))
+=======
+profiles <- read.csv("profiles.csv")
+
+profiles_propre <- profiles[, c("username","gender","birthday")]
+
+profiles_propre$gender <- trimws(profiles_propre$gender)
+
+profiles_propre$gender_Male       <- ifelse(profiles_propre$gender == "Male", 1, 0)
+profiles_propre$gender_Female     <- ifelse(profiles_propre$gender == "Female", 1, 0)
+profiles_propre$gender_NonBinary  <- ifelse(profiles_propre$gender == "Non-Binary", 1, 0)
+>>>>>>> 9c1baf1d016a9a6f1ef9e69177175b6d80a9b5e2
 
 year <- sub(".* ([0-9]{4})$", "\\1", profiles_propre$birthday)
 year[!grepl("^[0-9]{4}$", year)] <- NA
 year_num <- as.numeric(year)
 
+<<<<<<< HEAD
 
 profiles_propre$age <- ifelse(is.na(year_num), NA, 2025 - year_num)
 
 profiles_propre$birthday<- NULL
 profiles_propre <- profiles_propre[profiles_propre$age >= 8 & profiles_propre$age <= 100, ]
+=======
+profiles_propre$age <- ifelse(is.na(year_num), NA, 2025 - year_num)
+
+profiles_propre$birthday <- NULL
+profiles_propre$gender   <- NULL   
+
+profiles_propre <- profiles_propre[profiles_propre$age >= 8 & profiles_propre$age <= 100, ]
+
+>>>>>>> 9c1baf1d016a9a6f1ef9e69177175b6d80a9b5e2
 head(profiles_propre)
 ```
 
@@ -281,7 +340,14 @@ X1<-merge(character_anime_works_propre, characters_propre, by = "anime_mal_id")
 X2<-merge(X1,details_selected,by.x= "anime_mal_id",by.y = "mal_id")
 X3<-merge(X2,fav_anime,by.x="anime_mal_id",by.y="id")
 X4<-merge(X3,stats,by.x="anime_mal_id",by.y = "mal_id")
+<<<<<<< HEAD
 head(X4)
+=======
+X5<-merge(X4,person_voice_works_propre,by="anime_mal_id")
+X6<-merge(X5,stats,by.x ="anime_mal_id",by.y="mal_id")
+X7<-merge(X6,nb_users_people,by="anime_mal_id")
+head(X7)
+>>>>>>> 9c1baf1d016a9a6f1ef9e69177175b6d80a9b5e2
 
 ```
 
