@@ -2,7 +2,7 @@
 title: "Anime"
 author: "Arnaud GRASSIAN"
 date: "2025-11-22"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -141,7 +141,6 @@ reco_features <- reco %>%
   group_by(mal_id) %>%
   summarise(
     num_recommendations_made = n(),
-    num_unique_recommendations_made = n_distinct(recommendation_mal_id),
     .groups = "drop"
   )
 ```
@@ -242,8 +241,6 @@ profiles_user <- profiles %>%
     username,
     age,
     gender,
-    prof_watching      = to_num(watching),
-    prof_completed     = to_num(completed),
     prof_on_hold       = to_num(on_hold),
     prof_dropped       = to_num(dropped),
     prof_plan_to_watch = to_num(plan_to_watch)
@@ -307,11 +304,9 @@ details_base <- details %>%
   transmute(
     mal_id,
     type, status, source, rating, season, year, episodes,
-    synopsis,
     score = to_num(score),
     scored_by = to_num(scored_by),
     rank = to_num(rank),
-    popularity = to_num(popularity),
     members = to_num(members),
     favorites = to_num(favorites),
     genres, studios, themes, demographics, producers,
@@ -322,9 +317,8 @@ details_numeric <- details_base %>%
   mutate(
     episodes = to_num(episodes),
     year = to_num(year),
-    synopsis_length = ifelse(is.na(synopsis), 0, nchar(synopsis))
   ) %>%
-  select(mal_id, episodes, year, synopsis_length)
+  select(mal_id, episodes, year)
 
 details_cat <- details_base %>%
   select(mal_id, type, status, source, rating, season) %>%
@@ -353,9 +347,8 @@ details_features <- details_numeric %>%
   left_join(stream_mh, by = "mal_id")
 
 anime_targets <- details_base %>%
-  select(mal_id, popularity, score) %>%
+  select(mal_id, score) %>%
   rename(
-    Y_popularity = popularity,
     Y_score_global = score
   )
 ```
@@ -394,7 +387,6 @@ char_to_anime <- char_works %>%
       NA_real_,
       max(character_favorites, na.rm = TRUE)
     ),
-    avg_about_length = mean(about_length, na.rm = TRUE),
     avg_nicknames_per_character = mean(num_nicknames, na.rm = TRUE),
     .groups = "drop"
   )
@@ -483,7 +475,7 @@ anime_level <- details_features %>%
   left_join(anime_targets, by = "mal_id")
 
 anime_level_train <- anime_level %>%
-  filter(!is.na(Y_popularity) | !is.na(Y_score_global))
+  filter( !is.na(Y_score_global))
 
 fwrite(anime_level_train, "anime_level.csv")
 ```
@@ -499,7 +491,6 @@ anime_reco_num <- details_base %>%
     mal_id = as.integer(mal_id),
     episodes = to_num(episodes),
     year = to_num(year),
-    synopsis_length = ifelse(is.na(synopsis), 0, nchar(synopsis))
   )
 
 anime_reco_cat <- details_base %>%
