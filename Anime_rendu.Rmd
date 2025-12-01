@@ -9,20 +9,17 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
-# ============================================================
-# MRR Anime Project — Clean pipeline to build 2 final datasets
-# 1) anime_level.csv : predicting popularity + global score of a new anime
-# 2) user_anime_level.csv : predicting user score / targeting users
-#
-# Corrected version:
-# - removed duplicate char_nick_feat computation
-# - fixed order of renaming for characters.csv
-# - ensured type consistency for fav_anime join
-# - removed useless stats_nonleak join in anime_level
-# - simplified Part B (only sampling-based join)
-# ============================================================
 
+# Construction des 2 tableaux
+
+Nous avons choisi de traiter un par un les fichiers csv pour ensuite les concaténer en 2 tableaux afin de répondre aux problématiques.
+
+
+## Fonctions utiles pour la suite
+
+Voici des fonctions que nous avons ensuite utilisé pour traiter plus simplement les csv.
+
+```{r}
 suppressPackageStartupMessages({
   library(data.table)
   library(dplyr)
@@ -32,10 +29,10 @@ suppressPackageStartupMessages({
   library(purrr)
 })
 
-# ---------------------------
-# 0) Helper functions
-# ---------------------------
 
+# parse_list_col : nettoie une colonne contenant des listes sous forme de 
+# chaînes de caractères (ex"['a','b']").
+# et renvoie une liste de vecteurs propres.
 parse_list_col <- function(x) {
   x <- as.character(x)
   x[is.na(x)] <- "[]"
@@ -49,6 +46,14 @@ parse_list_col <- function(x) {
   out
 }
 
+
+# multihot_topk :
+# - df : data frame
+# - id_col : nom de la colonne identifiant
+# - list_col : colonne contenant des listes
+# - prefix : préfixe des nouvelles colonnes
+# - top_k : garde seulement les k éléments les plus fréquents
+# Produit une matrice multihot.
 multihot_topk <- function(df, id_col, list_col, prefix, top_k = NULL) {
   lst <- parse_list_col(df[[list_col]])
   all_levels <- unlist(lst)
@@ -62,40 +67,50 @@ multihot_topk <- function(df, id_col, list_col, prefix, top_k = NULL) {
   bin_mat <- sapply(levels_keep, function(level) {
     as.integer(map_lgl(lst, ~ level %in% .x))
   })
-
   bin_df <- as.data.frame(bin_mat)
   names(bin_df) <- paste0(prefix, "_", make.names(levels_keep))
   bind_cols(df[, ..id_col, drop = FALSE], bin_df)
 }
 
+
+
+# onehot_topk :
+# - col : colonne catégorielle simple
+# Transforme en one-hot encoding, réduit aux catégories les plus fréquentes.
 onehot_topk <- function(df, col, prefix, top_k = NULL) {
   v <- as.character(df[[col]])
-  v[is.na(v) | v == ""] <- "Unknown"
-  freq <- sort(table(v), decreasing = TRUE)
-  keep <- names(freq)
-  if (!is.null(top_k)) keep <- keep[1:min(top_k, length(keep))]
-
-  v2 <- ifelse(v %in% keep, v, "Other")
+  if (!is.null(top_k)) {
+    tab  <- sort(table(v), decreasing = TRUE)
+    keep <- names(tab)[seq_len(min(top_k, length(tab)))]
+    v2   <- ifelse(v %in% keep, v, "Other")
+  } else {
+    # top_k = NULL : on garde toutes les modalités originales
+    v2 <- v
+  }
   mm <- model.matrix(~ v2 - 1)
   mm <- as.data.frame(mm)
-  names(mm) <- paste0(prefix, "_", make.names(str_replace(names(mm), "^v2", "")))
-  bind_cols(df %>% select(-all_of(col)), mm)
+  names(mm) <- paste0(prefix, "_", sub("^v2", "", names(mm)))
+  dplyr::bind_cols(df %>% dplyr::select(-all_of(col)), mm)
 }
 
+
+# to_num : conversion numérique silencieuse (NA si impossible)
 to_num <- function(x) suppressWarnings(as.numeric(x))
+
+
 ```
 
-```{r}
-# ---------------------------
-# 1) character_anime_works.csv
-# ---------------------------
-char_works <- fread("character_anime_works.csv")
-names(char_works) <- str_replace_all(names(char_works), "\\.", "_")
 
-# (optionnel mais plus robuste)
-if (!"anime_mal_id" %in% names(char_works) && "mal_id" %in% names(char_works)) {
-  char_works <- char_works %>% rename(anime_mal_id = mal_id)
-}
+
+On traite ensuite 1 par 1 les fichiers csv : 
+
+## character_anime_works.csv
+
+
+```{r}
+char_works <- fread("character_anime_works.csv")
+# Remplace les points dans les noms de colonnes par des underscores
+names(char_works) <- str_replace_all(names(char_works), "\\.", "_")
 
 char_features <- char_works %>%
   group_by(anime_mal_id) %>%
@@ -105,12 +120,16 @@ char_features <- char_works %>%
     num_supporting_characters = n_distinct(character_mal_id[role == "Supporting"]),
     .groups = "drop"
   )
+
+head(char_works)
+head(char_features)
 ```
+Avec le tableau char_features, on obtient pour un anime le nombre de personnages, ainsi que le nombre de personnages principaux et secondaires.
+
+
+## character_nicknames.csv
 
 ```{r}
-# ---------------------------
-# 2) character_nicknames.csv
-# ---------------------------
 char_nicks <- fread("character_nicknames.csv")
 names(char_nicks) <- str_replace_all(names(char_nicks), "\\.", "_")
 
@@ -118,105 +137,101 @@ char_nick_feat <- char_nicks %>%
   mutate(character_mal_id = as.character(character_mal_id)) %>%
   group_by(character_mal_id) %>%
   summarise(num_nicknames = n(), .groups = "drop")
+head(char_nick_feat)
+```
+Pour personnage, on obtient son nombre de nicknames.
 
-# ---------------------------
-# 3) person_alternate_names.csv (import only)
-# ---------------------------
+## person_alternate_names.csv
+
+
+```{r}
 person_alt_names <- fread("person_alternate_names.csv")
 names(person_alt_names) <- str_replace_all(names(person_alt_names), "\\.", "_")
 ```
 
+On n'a pas utilisé ce csv par la suite.
+
+## recommendations.csv
+
 ```{r}
-# ---------------------------
-# 4) recommendations.csv
-# ---------------------------
 reco <- fread("recommendations.csv")
 names(reco) <- str_replace_all(names(reco), "\\.", "_")
 
 reco_features <- reco %>%
-  transmute(
-    mal_id = to_num(mal_id),
-    recommendation_mal_id = to_num(recommendation_mal_id)
-  ) %>%
   group_by(mal_id) %>%
   summarise(
     num_recommendations_made = n(),
     .groups = "drop"
   )
+
+reco_features <- reco_features %>% rename(anime_mal_id = mal_id)
+
+head(reco_features)
 ```
+On obtient pour chaque anime le nombre de recommandations faites par cet anime.
+
+## stats.csv
 
 ```{r}
-# ---------------------------
-# 5) stats.csv
-# ---------------------------
 stats <- fread("stats.csv")
 names(stats) <- str_replace_all(names(stats), "\\.", "_")
 
-if (!"anime_mal_id" %in% names(stats) && "mal_id" %in% names(stats)) {
-  stats <- stats %>% rename(anime_mal_id = mal_id)
-}
-
-stats <- stats %>%
-  mutate(across(where(is.character), to_num))
+stats <- stats %>% rename(anime_mal_id = mal_id)
 
 stats_features_anime <- stats %>%
-  select(anime_mal_id, watching, completed, on_hold, dropped,
-         plan_to_watch, total)
+  select(
+    anime_mal_id,
+    watching,
+    completed,
+    on_hold,
+    dropped,
+    plan_to_watch,
+    total
+  )
+
+head(stats_features_anime)
 ```
 
+On a choisi de garder pour chaque anime les colonnes suivantes : 
+ - watching, le nombre d'utilisateurs actuellement en train de regarder
+ - completed, le nombre d'utilisateurs ayant terminé
+ - on_hold, le nombre d'utilisateurs ayant mis en pause
+ - dropped, le nombre d'utilisateurs ayant abandonné
+ - plan_to_watch, le nombre d'utilisateurs prévoyant de regarder
+ - total, total global
+
+## person_voice_works.csv
+
 ```{r}
-# ---------------------------
-# 6) person_voice_works.csv
-# ---------------------------
 p_voice <- fread("person_voice_works.csv")
 names(p_voice) <- str_replace_all(names(p_voice), "\\.", "_")
 
-if (!"person_mal_id" %in% names(p_voice)) {
-  if ("person_id" %in% names(p_voice)) {
-    p_voice <- p_voice %>% rename(person_mal_id = person_id)
-  } else if ("mal_id" %in% names(p_voice) && !"anime_mal_id" %in% names(p_voice)) {
-    p_voice <- p_voice %>% rename(person_mal_id = mal_id)
-  } else {
-    stop("Impossible de trouver l'identifiant personne dans person_voice_works.csv")
-  }
-}
+p_voice[, person_mal_id    := as.character(person_mal_id)]    
+p_voice[, character_mal_id := as.character(character_mal_id)] 
+p_voice[, anime_mal_id     := as.integer(anime_mal_id)]
 
-if ("anime_mal_id" %in% names(p_voice)) {
-  aid_col <- "anime_mal_id"
-} else if ("mal_id" %in% names(p_voice)) {
-  aid_col <- "mal_id"
-} else {
-  stop("Impossible de trouver la colonne anime dans person_voice_works.csv")
-}
-
-if ("character_mal_id" %in% names(p_voice)) {
-  p_voice[, character_mal_id := as.character(character_mal_id)]
-} else if ("character_id" %in% names(p_voice)) {
-  p_voice <- p_voice %>% rename(character_mal_id = character_id)
-  p_voice[, character_mal_id := as.character(character_mal_id)]
-}
-
-p_voice[, person_mal_id := as.character(person_mal_id)]
-p_voice[, (aid_col) := as.integer(get(aid_col))]
-
+# Supprime les doublons
 p_voice <- p_voice %>% distinct()
 
 voice_features <- p_voice %>%
-  group_by(across(all_of(aid_col))) %>%
+  group_by(anime_mal_id) %>%
   summarise(
-    num_seiyuu          = n_distinct(person_mal_id),
-    num_main_seiyuu     = n_distinct(person_mal_id[role == "Main"]),
-    num_support_seiyuu  = n_distinct(person_mal_id[role == "Supporting"]),
+    num_doubleurs        = n_distinct(person_mal_id),                   
+    num_main_doubleurs   = n_distinct(person_mal_id[role == "Main"]),   
+    num_support_doubleurs  = n_distinct(person_mal_id[role == "Supporting"]),
     .groups = "drop"
-  ) %>%
-  rename(anime_mal_id = !!aid_col) %>%
-  mutate(anime_mal_id = as.integer(anime_mal_id))
+  )
+head(voice_features)
 ```
 
+On a pour chaque anime le nombre de doubleurs ainsi que le nombre de doubleurs de personnages principaux et secondaires.
+
+
+## profiles.csv
+
+
 ```{r}
-# ---------------------------
-# 7) profiles.csv
-# ---------------------------
+
 profiles <- fread("profiles.csv")
 names(profiles) <- str_replace_all(names(profiles), "\\.", "_")
 
@@ -246,63 +261,61 @@ profiles_user <- profiles %>%
     prof_plan_to_watch = to_num(plan_to_watch)
   ) %>%
   onehot_topk("gender", "gender", top_k = NULL)
+head(profiles_user)
 ```
 
+On obtient un tableau des utilisateurs avec une colonne pour l’âge (estimé à partir de l’année de naissance), plusieurs indicateurs sur le comportement de l’utilisateur (nombre d’animes mis en pause, abandonnés ou prévus), ainsi que le genre. Ce dernier est traité par un encodage one-hot, c’est-à-dire qu’une colonne binaire est créée pour chaque valeur possible du genre (male, female, non_binary, unknown). Pour chaque utilisateur, la colonne correspondant à son genre vaut 1 et les autres valent 0.
+
+## person_anime_works.csv
+
+
+
 ```{r}
-# ---------------------------
-# 8) person_anime_works.csv
-# ---------------------------
 p_anime <- fread("person_anime_works.csv")
 names(p_anime) <- str_replace_all(names(p_anime), "\\.", "_")
-
-if (!"person_mal_id" %in% names(p_anime)) {
-  if ("person_id" %in% names(p_anime)) {
-    p_anime <- p_anime %>% rename(person_mal_id = person_id)
-  } else if ("mal_id" %in% names(p_anime) && !"anime_mal_id" %in% names(p_anime)) {
-    p_anime <- p_anime %>% rename(person_mal_id = mal_id)
-  } else {
-    stop("Aucune colonne personne reconnue dans person_anime_works.csv")
-  }
-}
-
 p_anime <- p_anime %>%
   mutate(
     person_mal_id = as.character(person_mal_id),
-    anime_mal_id = as.integer(anime_mal_id)
+    anime_mal_id  = as.integer(anime_mal_id)
   )
 
+# Extraction des features liées au staff musical par anime
 person_anime_features <- p_anime %>%
   mutate(
     position_clean = str_to_lower(position),
-    is_op = str_detect(position_clean, "op|opening|theme song performance \\(op\\)|tv op"),
-    is_ed = str_detect(position_clean, "ed|ending|theme song performance \\(ed\\)"),
-    is_insert = str_detect(position_clean, "inserted song")
+    is_op = str_detect(position_clean, "\\bop\\b|opening|theme song performance \\(op\\)|tv op"),
+  is_ed = str_detect(position_clean, "\\bed\\b|ending|theme song performance \\(ed\\)"),
+    is_insert  = str_detect(position_clean, "inserted song")
   ) %>%
   group_by(anime_mal_id) %>%
   summarise(
-    num_music_people = n_distinct(person_mal_id),
-    num_music_entries = n(),
-    num_op_entries = sum(is_op, na.rm = TRUE),
-    num_ed_entries = sum(is_ed, na.rm = TRUE),
+    num_music_people   = n_distinct(person_mal_id),
+    num_music_entries  = n(),
+    num_op_entries     = sum(is_op, na.rm = TRUE),
+    num_ed_entries     = sum(is_ed, na.rm = TRUE),
     num_insert_entries = sum(is_insert, na.rm = TRUE),
     .groups = "drop"
   )
+head(person_anime_features)
 ```
 
+
+
+
+## details.csv
+
+
 ```{r}
-# ---------------------------
-# 9) details.csv
-# ---------------------------
+
 details <- fread("details.csv")
 names(details) <- str_replace_all(names(details), "\\.", "_")
 
-if (!"mal_id" %in% names(details) && "anime_mal_id" %in% names(details)) {
-  details <- details %>% rename(mal_id = anime_mal_id)
-}
+details <- details %>% rename(anime_mal_id = mal_id)
+
 
 details_base <- details %>%
   transmute(
-    mal_id,
+    anime_mal_id,
     type, status, source, rating, season, year, episodes,
     score = to_num(score),
     scored_by = to_num(scored_by),
@@ -313,50 +326,61 @@ details_base <- details %>%
     explicit_genres, licensors, streaming
   )
 
+head(details_base)
+
 details_numeric <- details_base %>%
   mutate(
     episodes = to_num(episodes),
     year = to_num(year),
   ) %>%
-  select(mal_id, episodes, year)
+  select(anime_mal_id, episodes, year)
+
+head(details_numeric)
 
 details_cat <- details_base %>%
-  select(mal_id, type, status, source, rating, season) %>%
+  select(anime_mal_id, type, status, source, rating, season) %>%
   onehot_topk("type", "type", top_k = 10) %>%
   onehot_topk("status", "status", top_k = NULL) %>%
   onehot_topk("source", "source", top_k = 15) %>%
   onehot_topk("rating", "rating", top_k = NULL) %>%
   onehot_topk("season", "season", top_k = NULL)
 
-genres_mh <- multihot_topk(details_base, "mal_id", "genres", "genre", top_k = 30)
-themes_mh <- multihot_topk(details_base, "mal_id", "themes", "theme", top_k = 25)
-demo_mh   <- multihot_topk(details_base, "mal_id", "demographics", "demo", top_k = NULL)
-stud_mh   <- multihot_topk(details_base, "mal_id", "studios", "studio", top_k = 30)
-prod_mh   <- multihot_topk(details_base, "mal_id", "producers", "producer", top_k = 30)
-lic_mh    <- multihot_topk(details_base, "mal_id", "licensors", "licensor", top_k = 20)
-stream_mh <- multihot_topk(details_base, "mal_id", "streaming", "stream", top_k = 20)
+head(details_cat)
+
+genres_mh <- multihot_topk(details_base, "anime_mal_id", "genres", "genre", top_k = 30)
+themes_mh <- multihot_topk(details_base, "anime_mal_id", "themes", "theme", top_k = 25)
+demo_mh   <- multihot_topk(details_base, "anime_mal_id", "demographics", "demo", top_k = NULL)
+stud_mh   <- multihot_topk(details_base, "anime_mal_id", "studios", "studio", top_k = 30)
+prod_mh   <- multihot_topk(details_base, "anime_mal_id", "producers", "producer", top_k = 30)
+lic_mh    <- multihot_topk(details_base, "anime_mal_id", "licensors", "licensor", top_k = 20)
+stream_mh <- multihot_topk(details_base, "anime_mal_id", "streaming", "stream", top_k = 20)
 
 details_features <- details_numeric %>%
-  left_join(details_cat, by = "mal_id") %>%
-  left_join(genres_mh, by = "mal_id") %>%
-  left_join(themes_mh, by = "mal_id") %>%
-  left_join(demo_mh, by = "mal_id") %>%
-  left_join(stud_mh, by = "mal_id") %>%
-  left_join(prod_mh, by = "mal_id") %>%
-  left_join(lic_mh, by = "mal_id") %>%
-  left_join(stream_mh, by = "mal_id")
+  left_join(details_cat, by = "anime_mal_id") %>%
+  left_join(genres_mh, by = "anime_mal_id") %>%
+  left_join(themes_mh, by = "anime_mal_id") %>%
+  left_join(demo_mh, by = "anime_mal_id") %>%
+  left_join(stud_mh, by = "anime_mal_id") %>%
+  left_join(prod_mh, by = "anime_mal_id") %>%
+  left_join(lic_mh, by = "anime_mal_id") %>%
+  left_join(stream_mh, by = "anime_mal_id")
+
+head(details_features)
 
 anime_targets <- details_base %>%
-  select(mal_id, score) %>%
+  select(anime_mal_id, score) %>%
   rename(
     Y_score_global = score
   )
+
+head(anime_targets)
+
 ```
 
+## characters.csv
+
 ```{r}
-# ---------------------------
-# 10) characters.csv
-# ---------------------------
+
 characters <- fread("characters.csv")
 names(characters) <- str_replace_all(names(characters), "\\.", "_")
 
@@ -390,12 +414,11 @@ char_to_anime <- char_works %>%
     avg_nicknames_per_character = mean(num_nicknames, na.rm = TRUE),
     .groups = "drop"
   )
+head(char_to_anime)
 ```
 
+## favs.csv
 ```{r}
-# ---------------------------
-# 11) favs.csv
-# ---------------------------
 favs <- fread("favs.csv")
 names(favs) <- str_replace_all(names(favs), "\\.", "_")
 
@@ -405,23 +428,24 @@ favs_user <- favs %>%
   pivot_wider(names_from = fav_type, values_from = n, values_fill = 0) %>%
   rename_with(~ paste0("nb_fav_", .x), -username)
 
+head(favs_user)
+
 fav_anime <- favs %>%
   filter(fav_type == "anime") %>%
-  rename(mal_id = id) %>%
-  mutate(mal_id = as.integer(mal_id))  # FIX type
+  rename(anime_mal_id = id) %>%
+  mutate(anime_mal_id = as.integer(anime_mal_id))
 
 fav_anime_genres <- fav_anime %>%
-  left_join(genres_mh, by = "mal_id") %>%
+  left_join(genres_mh, by = "anime_mal_id") %>%
   group_by(username) %>%
   summarise(across(starts_with("genre_"), \(x) mean(x, na.rm = TRUE)),
             .groups="drop") %>%
   rename_with(~ paste0("pref_", .x), starts_with("genre_"))
+head(fav_anime_genres)
 ```
+## ratings.csv
 
 ```{r}
-# ---------------------------
-# 12) ratings.csv
-# ---------------------------
 ratings <- fread("ratings.csv")
 names(ratings) <- str_replace_all(names(ratings), "\\.", "_")
 
@@ -459,61 +483,61 @@ user_activity <- ratings_scored %>%
     user_mean_watched_eps = mean(num_watched_episodes, na.rm = TRUE),
     .groups = "drop"
   )
+head(user_activity)
 ```
+# Construction du tableau anime-level
 
 ```{r}
-# ============================================================
-# A) Build anime-level dataset
-# ============================================================
-
 anime_level <- details_features %>%
-  left_join(char_features, by = c("mal_id" = "anime_mal_id")) %>%
-  left_join(char_to_anime, by = c("mal_id" = "anime_mal_id")) %>%
-  left_join(voice_features, by = c("mal_id" = "anime_mal_id")) %>%
-  left_join(person_anime_features, by = c("mal_id" = "anime_mal_id")) %>%
-  left_join(reco_features, by = "mal_id") %>%
-  left_join(anime_targets, by = "mal_id")
+  left_join(char_features,         by = "anime_mal_id") %>%
+  left_join(char_to_anime,         by = "anime_mal_id") %>%
+  left_join(voice_features,        by = "anime_mal_id") %>%
+  left_join(person_anime_features, by = "anime_mal_id") %>%
+  left_join(reco_features,         by = "anime_mal_id") %>%
+  left_join(anime_targets,         by = "anime_mal_id")
 
 anime_level_train <- anime_level %>%
-  filter( !is.na(Y_score_global))
+  filter(!is.na(Y_score_global))
 
 fwrite(anime_level_train, "anime_level.csv")
 ```
 
-```{r}
-# ============================================================
-# B) Build user–anime dataset (RAM-safe sampling)
-# ============================================================
 
-# ---- B0) Minimal anime features for recommendation ----
+# Construction du tableau user–anime
+
+```{r}
 anime_reco_num <- details_base %>%
   transmute(
-    mal_id = as.integer(mal_id),
-    episodes = to_num(episodes),
-    year = to_num(year),
+    anime_mal_id = as.integer(anime_mal_id),
+    episodes     = to_num(episodes),
+    year         = to_num(year)
   )
 
 anime_reco_cat <- details_base %>%
-  select(mal_id, type, rating, status, season) %>%
-  mutate(across(c(type, rating, status, season), as.character)) %>%
-  onehot_topk("type", "type", top_k = 10) %>%
-  onehot_topk("rating", "rating", top_k = NULL) %>%
-  onehot_topk("status", "status", top_k = NULL) %>%
-  onehot_topk("season", "season", top_k = NULL)
+  select(anime_mal_id, type, rating, status, season, source) %>%   # + source ici
+  mutate(across(c(type, rating, status, season, source), as.character)) %>%  # + source ici aussi
+  onehot_topk("type",   "type",   top_k = 10) %>%    # types les 10 plus fréquents
+  onehot_topk("rating", "rating", top_k = NULL) %>% 
+  onehot_topk("status", "status", top_k = NULL) %>%  
+  onehot_topk("season", "season", top_k = NULL) %>%  
+  onehot_topk("source", "source", top_k = 15)        # 15 sources les plus fréquentes
 
-genres_mh_small <- multihot_topk(details_base, "mal_id", "genres", "genre", top_k = 30)
+
+genres_mh_small <- multihot_topk(details_base, "anime_mal_id", "genres", "genre", top_k = 30)
 
 anime_reco <- anime_reco_num %>%
-  left_join(anime_reco_cat, by = "mal_id") %>%
-  left_join(genres_mh_small, by = "mal_id")
+  left_join(anime_reco_cat,  by = "anime_mal_id") %>%
+  left_join(genres_mh_small, by = "anime_mal_id") %>%
+  rename(mal_id = anime_mal_id)
+
 
 setDT(anime_reco)
 anime_reco[, mal_id := as.integer(mal_id)]
 setkey(anime_reco, mal_id)
 
-# ---- B1) Sample ratings to keep RAM under control ----
 setDT(ratings_scored)
-ratings_scored_sample <- ratings_scored[sample(.N, 2e6)]  # 2 million rows
+# Échantillonnage pour limiter l'usage RAM (2 millions de lignes)
+ratings_scored_sample <- ratings_scored[sample(.N, 2e6)]  # 2 million 
 
 ratings_keep <- ratings_scored_sample[, .(
   username,
@@ -525,10 +549,8 @@ ratings_keep <- ratings_scored_sample[, .(
   status_on_hold, status_plan_to_watch
 )]
 
-# ---- B2) Join in data.table ----
 user_anime_step1 <- anime_reco[ratings_keep, on = "mal_id"]
 
-# ---- B3) Add user-side features ----
 user_anime_step1 <- as_tibble(user_anime_step1)
 
 user_anime_level <- user_anime_step1 %>%
@@ -539,42 +561,4 @@ user_anime_level <- user_anime_step1 %>%
   rename(Y_user_score = score)
 
 fwrite(user_anime_level, "user_anime_level.csv")
-
-cat("\nDONE.\nFiles written:\n")
-cat(" - anime_level.csv\n")
-cat(" - user_anime_level.csv\n")
 ```
-PLOTS
-
-```{r}
-# distribution sur fichier complet (FRÉQUENCES SEULEMENT)
-dist_full <- ratings_scored %>%
-  count(score) %>%
-  mutate(source = "Complet",
-         prop = n / sum(n))
-
-# distribution sur échantillon 2M
-dist_sample <- ratings_scored_sample %>%
-  count(score) %>%
-  mutate(source = "Échantillon 2M",
-         prop = n / sum(n))
-
-dist_compare <- bind_rows(dist_full, dist_sample)
-```
-
-```{r}
-library(ggplot2)
-
-ggplot(dist_compare, aes(x = factor(score), y = prop, fill = source)) +
-  geom_col(position = "dodge") +
-  labs(
-    title = "Comparaison des distributions de notes (Complet vs Échantillon)",
-    x = "Note utilisateur",
-    y = "Proportion",
-    fill = "Jeu de données"
-  ) +
-  theme_minimal()
-```
-
-
-
