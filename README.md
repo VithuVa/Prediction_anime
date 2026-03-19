@@ -3,14 +3,14 @@
 **Auteurs :** Arnaud GRASSIAN & Vithuson VAITHILINGAM 
 **Date :** Décembre 2025
 
-## 📋 Description du Projet
+## Description du Projet
 
 Ce projet s'inscrit dans le cadre du cours M.R.R. 2025. L'objectif est d'exploiter un jeu de données issu de Kaggle (MyAnimeList ) pour répondre à deux problématiques principales :
 
 1.  **Prédiction (Régression) :** Est-il possible de prédire la note moyenne (*score*) d'un anime en fonction de ses caractéristiques (genre, studio, staff, etc.) ?
 2.  **Recommandation (Classification) :** Comment sélectionner des utilisateurs spécifiques pour leur recommander de nouveaux animes (prédiction binaire "Aimé" / "Pas Aimé") ?
 
-## 🛠️ Prérequis Techniques
+##Prérequis Techniques
 
 Pour exécuter ce projet, vous avez besoin de **R** et **RStudio**. Les scripts sont au format R Markdown (`.Rmd`).
 
