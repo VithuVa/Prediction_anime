@@ -1,4 +1,5 @@
 data/* linguist-generated=true
 rendus/* linguist-generated=true
-scripts/*.R linguist-language=R
-scripts/*.R linguist-language=R
+*.R linguist-language=R
+*.r linguist-language=R
+*.Rmd linguist-language=R
